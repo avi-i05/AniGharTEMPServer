@@ -64,9 +64,9 @@ async function connectDB() {
     console.error('MongoDB connection error:', error);
     process.exit(1);
   }
-};
+}
 
-// Middleware
+// Allowed origins list
 const allowedOrigins = [
   'http://localhost:3000', 
   'http://localhost:8080',
@@ -75,17 +75,6 @@ const allowedOrigins = [
   'http://127.0.0.1:8080',
   'http://127.0.0.1:5173'
 ];
-
-// Get the current domain for cookie settings
-const getDomain = (origin) => {
-  if (!origin) return 'localhost';
-  try {
-    const url = new URL(origin);
-    return url.hostname === 'localhost' ? 'localhost' : `.${url.hostname}`;
-  } catch (e) {
-    return 'localhost';
-  }
-};
 
 // Configure CORS with dynamic origin
 const corsOptions = {
@@ -130,10 +119,8 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// Apply CORS with the options
+// Apply CORS middleware
 app.use(cors(corsOptions));
-
-// Handle preflight requests
 app.options('*', cors(corsOptions));
 
 // Trust first proxy (for production)
@@ -141,31 +128,10 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-// Middleware
+// Middleware to parse JSON, urlencoded data, and cookies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
-
-// Add CORS headers to all responses
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-  );
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
 
 // Optional request logging (disabled by default)
 if (process.env.VERBOSE_REQUESTS === 'true') {
@@ -185,7 +151,7 @@ app.use('/api/upload', uploadRoutes);
 // Serve static files from the public directory
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
-// Serve static files from the React frontend app
+// Serve static files from React frontend in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
   
@@ -210,10 +176,10 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Not Found' });
 });
 
-// Start server
+// Start server function
 const startServer = async () => {
   try {
-    // Validate required environment variables
+    // Validate required env variables
     if (!process.env.JWT_SECRET) {
       throw new Error('JWT_SECRET is not defined in environment variables');
     }
@@ -224,7 +190,7 @@ const startServer = async () => {
 
     await connectDB();
     
-    // Create default admin user if it doesn't exist
+    // Create default admin user if doesn't exist
     const User = (await import('./models/User.js')).default;
     const bcrypt = (await import('bcryptjs')).default;
     
